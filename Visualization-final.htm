@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		<style>
+			body {
+				margin: 0px;
+				background-color: #000000;
+				overflow: hidden;
+			}
+		</style>
+		<script type="text/javascript" src="assets/scripts/dat.gui.js"></script>		
+		<script type="text/javascript" src="assets/scripts/three.js"></script>
+		<script type="text/javascript" src="assets/scripts/jquery-2.1.1.js"></script>
+		<script type="text/javascript" src="assets/scripts/OrbitControls.js"></script>
+	</head>
+	<body>
+		<script>
+			// Textoverlay for guidance
+			var message = document.createElement('div');
+			message.style.position = 'absolute';
+			message.style.fontFamily = "Tahoma";
+			message.style.color = "white";
+			message.style.opacity = "0.5";					
+			message.innerHTML = "Please drag and drop a .mp3 file of your choice into this window. Click and drag around to move the camera.";
+			message.style.top = 10 + 'px';
+			message.style.left = 10 + 'px';
+			document.body.appendChild(message);
+		
+			// Audio
+			var javascriptNode, audioContext, sourceBuffer, analyser, audioArray;
+			
+			// Styles
+			var currentStyle, barStyle, tribunalStyle, tunnelStyle, sphereStyle, randomBubblesStyle;
+			
+			// Other stuff
+			var camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+			var control;
+			var lastUpdate = 0;
+			
+			// --------------------------------------------------
+			// ---------------- Start of GUI --------------------
+			// --------------------------------------------------
+			var guiControl = new function() {
+				this.cameraPositionX = 0.0;
+				this.cameraPositionY = 0.0;
+				this.cameraPositionZ = 0.0;
+				
+				this.style = 'BarStyle';
+			};
+			
+			var gui = new dat.GUI();
+		
+			window.onload = function(){
+				gui.add(guiControl, 'cameraPositionX', -200, 200).onChange(function(newValue) {
+					camera.position.x = newValue;
+				}).listen();
+				gui.add(guiControl, 'cameraPositionY', -200, 200).onChange(function(newValue) {
+					camera.position.y = newValue;
+				}).listen();
+				gui.add(guiControl, 'cameraPositionZ', -500, 500).onChange(function(newValue) {
+					camera.position.z = newValue;
+				}).listen();
+				gui.add(guiControl, 'style', ['BarStyle', 'TribunalStyle', 'TunnelStyle', 'SphereStyle', 'RandomBubblesStyle']).onChange(function(newValue) {
+					accessStyle(newValue);
+				}).listen();
+			};
+			// --------------------------------------------------
+			// ---------------- End of GUI ----------------------
+			// --------------------------------------------------				
+			
+			// Add styles here
+			function accessStyle(choice) {
+				switch (choice) {
+					case 'ExampleStyle':
+						currentStyle = exampleStyle;
+						break;
+					case 'BarStyle':
+						camera.position.set(0, 0, 120);
+						camera.lookAt(barStyle.scene)
+						currentStyle = barStyle;
+						break;
+					case 'TribunalStyle':
+						camera.position.set(0, 50, 500);
+						camera.lookAt(tribunalStyle.scene)
+						currentStyle = tribunalStyle;
+						break;
+					case 'TunnelStyle':
+						camera.position.set(0, 90, 300);
+						camera.lookAt(tunnelStyle.scene)
+						currentStyle = tunnelStyle;
+						break;
+					case 'SphereStyle':
+						camera.position.set(0, 0, 200);
+						camera.lookAt(sphereStyle.scene);
+						currentStyle = sphereStyle;
+						break;
+					case 'RandomBubblesStyle':
+						camera.position.set(0, 50, 350);
+						camera.lookAt(randomBubblesStyle.scene);
+						currentStyle = randomBubblesStyle;
+						break;
+					default:
+						// Do nothing.
+						break;
+				}
+			};
+			
+			// -------------------------------------------------
+			// ------------ Start of ExampleStyle --------------
+			// -------------------------------------------------
+			function ExampleStyle() {
+				this.scene = new THREE.Scene();
+				
+				camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+				camera.position.x = 20;
+				camera.position.y = 0;
+				camera.position.z = 20;
+				camera.lookAt(this.scene.position);
+				
+				this.ambientLight = new THREE.AmbientLight(0x444444);
+				this.scene.add(this.ambientLight);
+				
+				this.cube = new THREE.Mesh(new THREE.CubeGeometry(2, 2, 2), new THREE.MeshNormalMaterial());
+				this.cube.position.x = -20;
+				this.cube.position.y = 0;
+				this.cube.position.z = -20;
+				this.scene.add(this.cube);
+			};
+			
+			ExampleStyle.prototype.update = function(deltaTime) {
+				camera.position.x = guiControl.cameraPositionX;
+				camera.position.y = guiControl.cameraPositionY;
+				camera.position.z = guiControl.cameraPositionZ;
+				
+				scaleY = audioArray[audioArray.length / 2] / 10;
+				this.cube.scale.y = scaleY + 1;
+			};
+			
+			ExampleStyle.prototype.draw = function() {
+				renderer.render(this.scene, camera);
+			};
+			
+			ExampleStyle.prototype.destroy = function() {
+				// Is destroy needed?
+			};
+			// -------------------------------------------------
+			// -------------- End of ExampleStyle --------------
+			// -------------------------------------------------
+			
+			// -------------------------------------------------
+			// -------------- Start of BarStyle ----------------
+			// -------------------------------------------------
+			function BarStyle() {
+				this.scene = new THREE.Scene();
+				
+				this.ambientLight = new THREE.AmbientLight(0xffffff);
+				this.scene.add(this.ambientLight);
+				
+				this.bars = new Array();
+				this.numberOfBars = 60;
+				
+				//iterate and create bars
+				for (var i = 0; i < this.numberOfBars; i++) {
+					var barGeometry = new THREE.CubeGeometry(0.5, 0.5, 0.5);
+					
+					var material = new THREE.MeshPhongMaterial({
+						color: new THREE.Color( i * (1/this.numberOfBars), 0, 1 - i * (1/this.numberOfBars)),
+						specular: 0xffffff,
+						emissive: '#006063',
+						shininess: 70
+					});
+					
+					this.bars[i] = new THREE.Mesh(barGeometry, material);
+					this.bars[i].position.set(i * 2 - this.numberOfBars, 0, 0);
+					this.scene.add(this.bars[i]);
+				}
+			};
+			
+			BarStyle.prototype.update = function(deltaTime) {
+				var step = Math.round(audioArray.length / this.numberOfBars);
+
+				for (var i = 0; i < this.numberOfBars; i++) {
+					scaleY = audioArray[audioArray.length / 2] / 10;
+				
+					var value = audioArray[i * step] / 4;
+					value = value < 1 ? 1 : value;
+					this.bars[i].scale.y = value;
+				}
+			};
+			
+			BarStyle.prototype.draw = function() {
+				renderer.render(this.scene, camera);
+			};
+			
+			BarStyle.prototype.destroy = function() {
+				// Is destroy needed?
+			};
+
+			// -------------------------------------------------
+			// ---------------- End of BarStyle ----------------
+			// -------------------------------------------------
+			
+			// -------------------------------------------------
+			// ------------ Start of TribunalStyle -------------
+			// -------------------------------------------------
+			function TribunalStyle() {
+				this.scene = new THREE.Scene();
+				this.radius = 250;
+				this.N = 10;
+				this.circleBegin = 180;
+				this.circleEnd = 360;
+				this.numberOfCubes = 0;
+				
+				ambientLight = new THREE.AmbientLight(0x444444);
+				this.scene.add(ambientLight);
+				
+				directionalLightOne = new THREE.DirectionalLight(0xdd4411, 1);
+				directionalLightOne.position.x = 0;
+				directionalLightOne.position.y = 0;
+				directionalLightOne.position.z = 10;
+				directionalLightOne.position.normalize();
+				this.scene.add(directionalLightOne);
+				
+				directionalLightTwo = new THREE.DirectionalLight(0xdddddd, 1);
+				directionalLightTwo.position.x = 10;
+				directionalLightTwo.position.y = 0;
+				directionalLightTwo.position.z = 0;
+				directionalLightTwo.position.normalize();
+				this.scene.add(directionalLightTwo);
+				
+				directionalLightThree = new THREE.DirectionalLight(0x99bbff, 1);
+				directionalLightThree.position.x = -10;
+				directionalLightThree.position.y = 0;
+				directionalLightThree.position.z = -10;
+				directionalLightThree.position.normalize();
+				this.scene.add(directionalLightThree);
+
+				this.cubes = new Array();
+				
+				for (var i = this.circleBegin; i < this.circleEnd; i++) {
+					if (i % this.N != 0) {
+						continue;
+					}
+					
+					cube = new THREE.Mesh(new THREE.CubeGeometry(1, 1, 1), new THREE.MeshPhongMaterial({color: 0xffffff}));
+					
+					cube.position.x = this.radius * Math.cos(Math.PI / 180 * i) ;
+					cube.position.y = 0;
+					cube.position.z = this.radius * Math.sin(Math.PI / 180 * i) ;
+					
+					cube.scale.x = 15;
+					cube.scale.y = 15;
+					cube.scale.z = 15;
+
+					this.cubes[this.numberOfCubes++] = cube;
+					this.scene.add(cube);
+				}
+			};
+			
+			TribunalStyle.prototype.update = function(deltaTime) {
+				var step = Math.round(audioArray.length / this.numberOfCubes);
+				scaleY = audioArray[audioArray.length / 2] / 10;
+				
+				for (var i = 0; i < this.numberOfCubes; i++) {
+						var value = audioArray[i * step] / 4;
+						value = value < 1 ? 15 : value;
+						
+						this.cubes[i].scale.y = value;
+						this.cubes[i].position.y = value / 2;
+				}				
+			};
+			
+			TribunalStyle.prototype.draw = function() {
+				renderer.render(this.scene, camera);
+			};
+			
+			TribunalStyle.prototype.destroy = function() {
+				// Is destroy needed?
+			};
+			// -------------------------------------------------
+			// -------------- End of TribunalStyle -------------
+			// -------------------------------------------------				
+			
+			// -------------------------------------------------
+			// ------------- Start of TunnelStyle --------------
+			// -------------------------------------------------
+			function TunnelStyle() {
+				this.scene = new THREE.Scene();
+				this.radius = 100;
+				this.N = 10;
+				this.circleBegin = 0;
+				this.circleEnd = 360;
+				this.numberOfCubes = 0;
+				
+				ambientLight = new THREE.AmbientLight(0x444444);
+				this.scene.add(ambientLight);
+				
+				directionalLightOne = new THREE.DirectionalLight(0x77aaff, 1);
+				directionalLightOne.position.x = 0;
+				directionalLightOne.position.y = 0;
+				directionalLightOne.position.z = 100;
+				directionalLightOne.position.normalize();
+				directionalLightOne.lookAt(this.scene);
+				this.scene.add(directionalLightOne);
+				
+				directionalLightTwo = new THREE.DirectionalLight(0xdddddd, 1);
+				directionalLightTwo.position.x = 100;
+				directionalLightTwo.position.y = 0;
+				directionalLightTwo.position.z = 0;
+				directionalLightTwo.position.normalize();
+				directionalLightTwo.lookAt(this.scene);
+				this.scene.add(directionalLightTwo);
+				
+				directionalLightThree = new THREE.DirectionalLight(0x99bbff, 1);
+				directionalLightThree.position.x = 0;
+				directionalLightThree.position.y = 100;
+				directionalLightThree.position.z = 0;
+				directionalLightThree.position.normalize();
+				directionalLightThree.lookAt(this.scene);
+				this.scene.add(directionalLightThree);
+			
+				this.circleCenter = new THREE.Vector3();
+				this.cubes = new Array();
+				
+				for (var i = this.circleBegin; i < this.circleEnd; i++) {
+					if (i % this.N != 0) {
+						continue;
+					}
+					
+					cube = new THREE.Mesh(new THREE.CubeGeometry(1, 1, 1), new THREE.MeshPhongMaterial({color: 0xffffff}));
+					
+					cube.position.x = this.circleCenter.x + this.radius * Math.cos(Math.PI / 180 * i);
+					cube.position.y = this.circleCenter.y + 0;
+					cube.position.z = this.circleCenter.z + this.radius * Math.sin(Math.PI / 180 * i);
+					
+					cube.scale.x = 10;
+					cube.scale.y = 10;
+					cube.scale.z = 10;
+					
+					cube.rotation.y = Math.atan2((this.circleCenter.x - cube.position.x ), (this.circleCenter.z - cube.position.z));
+					
+					this.cubes[this.numberOfCubes++] = cube;
+					this.scene.add(cube);
+				}
+			}
+			
+			TunnelStyle.prototype.update = function(deltaTime) {
+				var step = Math.round(audioArray.length / this.numberOfCubes);
+				
+				for (var i = 0; i < this.numberOfCubes; i++) {
+					var value = audioArray[i * step];
+					value = value < 1 ? 10 : value;
+
+					this.cubes[i].scale.z = value / 4;
+				}				
+			}
+			
+			TunnelStyle.prototype.draw = function() {
+				renderer.render(this.scene, camera);
+			}
+			
+			TunnelStyle.prototype.destroy = function() {
+				// Is destroy needed?
+			}
+			// -------------------------------------------------
+			// --------------- End of TunnelStyle --------------
+			// -------------------------------------------------								
+
+			// -------------------------------------------------
+			// -------------- Start of SphereStyle -------------
+			// -------------------------------------------------
+			function SphereStyle() {
+				this.scene = new THREE.Scene();
+				this.radius = 250;
+				this.N = 30;
+				this.circleBegin = -360;
+				this.circleEnd = 360;
+				this.numberOfCubes = 0;
+				
+				ambientLight = new THREE.AmbientLight(0xaaaaaa);
+				this.scene.add(ambientLight);
+				
+				directionalLightOne = new THREE.DirectionalLight(0x77aaff, 1);
+				directionalLightOne.position.x = 0;
+				directionalLightOne.position.y = 0;
+				directionalLightOne.position.z = 10;
+				directionalLightOne.position.normalize();
+				this.scene.add(directionalLightOne);
+				
+				directionalLightTwo = new THREE.DirectionalLight(0xdddddd, 1);
+				directionalLightTwo.position.x = 10;
+				directionalLightTwo.position.y = 0;
+				directionalLightTwo.position.z = 0;
+				directionalLightTwo.position.normalize();
+				this.scene.add(directionalLightTwo);
+				
+				directionalLightThree = new THREE.DirectionalLight(0x99bbff, 1);
+				directionalLightThree.position.x = -10;
+				directionalLightThree.position.y = 0;
+				directionalLightThree.position.z = -10;
+				directionalLightThree.position.normalize();
+				this.scene.add(directionalLightThree);
+
+				this.spheres = new Array();
+				this.numberOfSpheres = 0;
+				
+				for (var i = this.circleBegin; i < this.circleEnd; i++) {
+					if (i % this.N != 0) {
+						continue;
+					}
+					
+					sphere = new THREE.Mesh(new THREE.SphereBufferGeometry(1, 10, 10), new THREE.MeshPhongMaterial({color: 0xffffff}));
+					
+					sphere = new THREE.Mesh(
+						new THREE.SphereBufferGeometry(1, 128, 128),
+						new THREE.MeshPhongMaterial({
+							color: new THREE.Color(this.numberOfSpheres * (1 / 24), 1 - this.numberOfSpheres * (1 / 24), 0.3)
+					}));
+					
+					sphere.position.x = Math.sin(i * Math.PI / 180) + i;
+					sphere.position.y = Math.sin(i * Math.PI / 180) * 100;
+					sphere.position.z = -500;
+
+					this.spheres[this.numberOfSpheres++] = sphere;
+					this.scene.add(sphere);
+				}
+			}
+			
+			SphereStyle.prototype.update = function(deltaTime) {
+				var step = Math.round(audioArray.length / this.numberOfSpheres);
+				
+				for (var i = 0; i < this.numberOfSpheres; i++) {
+						var value = audioArray[i * step] / 15 ;
+						value = value < 1 ? 1 : value;
+						
+						this.spheres[i].scale.x = value;
+						this.spheres[i].scale.y = value;
+						this.spheres[i].scale.z = value;
+				}				
+			}
+			
+			SphereStyle.prototype.draw = function() {
+				renderer.render(this.scene, camera);
+			}
+			
+			SphereStyle.prototype.destroy = function() {
+				// Is destroy needed?
+			}
+			// -------------------------------------------------
+			// --------------- End of SphereStyle --------------
+			// -------------------------------------------------
+			
+			// -------------------------------------------------
+			// ------------ Start of RandomBubblesStyle --------
+			// -------------------------------------------------
+			function RandomBubblesStyle() {
+				this.scene = new THREE.Scene();
+				this.bubbleRadius = 10;
+				this.numberOfBubbles = 60;
+				
+				ambientLight = new THREE.AmbientLight(0xdddddd);
+				this.scene.add(ambientLight);
+				
+				directionalLightOne = new THREE.DirectionalLight(0x666666, 1);
+				directionalLightOne.position.x = 0;
+				directionalLightOne.position.y = 0;
+				directionalLightOne.position.z = 100;
+				directionalLightOne.position.normalize();
+				directionalLightOne.lookAt(this.scene);
+				this.scene.add(directionalLightOne);
+				
+				directionalLightTwo = new THREE.DirectionalLight(0xdddddd, 1);
+				directionalLightTwo.position.x = 100;
+				directionalLightTwo.position.y = 0;
+				directionalLightTwo.position.z = 0;
+				directionalLightTwo.position.normalize();
+				directionalLightTwo.lookAt(this.scene);
+				this.scene.add(directionalLightTwo);
+				
+				directionalLightThree = new THREE.DirectionalLight(0xffffff, 1);
+				directionalLightThree.position.x = -100;
+				directionalLightThree.position.y = 1000;
+				directionalLightThree.position.z = -100;
+				directionalLightThree.position.normalize();
+				directionalLightThree.lookAt(this.scene);
+				this.scene.add(directionalLightThree);
+
+				this.bubbles = new Array();
+				
+				for (var i = 0; i < this.numberOfBubbles; i++) {
+					bubble = new THREE.Mesh(
+						new THREE.SphereBufferGeometry(1, 128, 128),
+						new THREE.MeshPhongMaterial({
+							color: new THREE.Color(i * (1 / this.numberOfBubbles) * 0.7, i * (1 / this.numberOfBubbles) * 0.6 + 0.2, 1 - i * (1 / this.numberOfBubbles))
+					}));
+					
+					bubble.position.x = (200 * Math.random()) - 100;
+					bubble.position.y = (200 * Math.random()) - 100;
+					bubble.position.z = (200 * Math.random()) - 100;
+
+					this.bubbles[i] = bubble;
+					this.scene.add(bubble);
+				}
+			}
+			
+			RandomBubblesStyle.prototype.update = function(deltaTime) {
+				var step = Math.round(audioArray.length / this.numberOfBubbles);
+				
+				for (var i = 0; i < this.numberOfBubbles; i++) {
+						var value = audioArray[i * step] / 20;
+						value = value < 1 ? 1 : value;
+						
+						this.bubbles[i].scale.x = value;
+						this.bubbles[i].scale.y = value;
+						this.bubbles[i].scale.z = value;
+				}				
+			}
+			
+			RandomBubblesStyle.prototype.draw = function() {
+				renderer.render(this.scene, camera);
+			}
+			
+			RandomBubblesStyle.prototype.destroy = function() {
+				// Is destroy needed?
+			}
+			// -------------------------------------------------
+			// ----------- End of RandomBubblesStyle -----------
+			// -------------------------------------------------
+			
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize(window.innerWidth, window.innerHeight);
+			};
+			
+			function init(){
+				audioArray = new Array();
+			
+				var canvas = document.createElement('canvas');
+				canvas.id = 'canvas';
+			
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio(window.devicePixelRatio);
+				renderer.setSize(window.innerWidth, window.innerHeight);
+				document.body.appendChild(renderer.domElement);
+				
+				//camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+				
+				// ----- Start of Styles -----
+				exampleStyle = new ExampleStyle();
+				barStyle = new BarStyle();
+				tribunalStyle = new TribunalStyle();
+				tunnelStyle = new TunnelStyle();
+				sphereStyle = new SphereStyle();
+				randomBubblesStyle = new RandomBubblesStyle();
+				// ----- End of Styles -----
+				
+				// ----- Start of Audio stuff -----
+				audioContext = new AudioContext();
+
+				javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+				javascriptNode.connect(audioContext.destination);
+
+				sourceBuffer = audioContext.createBufferSource();
+
+				analyser = audioContext.createAnalyser();
+				analyser.smoothingTimeConstant = 0.3;
+				analyser.fftSize = 512;
+
+				sourceBuffer.connect(analyser);
+				analyser.connect(javascriptNode);
+				sourceBuffer.connect(audioContext.destination);
+
+				var that = this;
+
+				javascriptNode.onaudioprocess = function () {
+					audioArray = new Uint8Array(analyser.frequencyBinCount);
+					analyser.getByteFrequencyData(audioArray);
+				}
+				// ----- End of Audio stuff -----
+				
+				accessStyle('BarStyle');
+				
+				control = new THREE.OrbitControls(camera, renderer.domElement);
+
+				window.addEventListener('resize', onWindowResize, false);
+			};
+			
+			var update = function() {
+				var time = performance.now();
+				var elapsed = time - lastUpdate;
+				
+				control.update();
+
+				guiControl.cameraPositionX = camera.position.x;
+				guiControl.cameraPositionY = camera.position.y;
+				guiControl.cameraPositionZ = camera.position.z;
+				
+				currentStyle.update(elapsed);
+				currentStyle.draw();
+				
+				lastUpdate = time;
+				requestAnimationFrame(update);
+			};
+			
+			function startProcessing(buffer) {
+				audioContext.decodeAudioData(buffer, decodeAudioDataSuccess, decodeAudioDataFailed);
+
+				function decodeAudioDataSuccess(decodedBuffer) {
+					sourceBuffer.buffer = decodedBuffer
+					sourceBuffer.start(0);
+				}
+
+				function decodeAudioDataFailed() {
+					debugger
+				}
+			};
+			
+			function songDrop() {
+				document.body.addEventListener("dragenter", function () {
+				   
+				}, false);
+
+				document.body.addEventListener("dragover", function (e) {
+					e.stopPropagation();
+					e.preventDefault();
+					e.dataTransfer.dropEffect = 'copy';
+				}, false);
+
+				document.body.addEventListener("dragleave", function () {
+				   
+				}, false);
+
+				document.body.addEventListener("drop", function (e) {
+					e.stopPropagation();
+					e.preventDefault();
+
+					var file = e.dataTransfer.files[0];
+					var fileName = file.name;
+					
+					var name = document.createElement('div');
+					name.style.position = 'absolute';
+					name.style.fontFamily = "Tahoma";					
+					name.style.opacity = "0.5";					
+					name.style.color = "white";
+					name.innerHTML = "Songtitel: " + fileName + ", please refresh to enter a new file.";
+					name.style.top = 30 + 'px';
+					name.style.left = 10 + 'px';
+					document.body.appendChild(name);
+
+					$("#guide").text("Playing " + fileName);
+
+					var fileReader = new FileReader();
+
+					fileReader.onload = function (e) {
+						var fileResult = e.target.result;
+						startProcessing(fileResult);
+					};
+
+					fileReader.onerror = function (e) {
+					  debugger
+					};
+				   
+					fileReader.readAsArrayBuffer(file);
+				}, false);
+			};
+			
+			init();
+			songDrop();
+			update();
+		</script>
+	</body>
+</html>
